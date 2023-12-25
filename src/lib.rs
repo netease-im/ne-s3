@@ -1,6 +1,8 @@
 //! simple s3 client with C interfaces
 use std::sync::Mutex;
-mod s3;
+mod basic;
+mod upload;
+mod download;
 
 static mut RUNTIME: Mutex<Option<tokio::runtime::Runtime>> = Mutex::new(None);
 /// init tokio runtime
@@ -29,33 +31,27 @@ pub fn uninit() {
     }
 }
 
-pub type ResultCallback = Box<dyn Fn(bool, String) + Send + Sync>;
-pub type ProgressCallback = Box<dyn Fn(u64) + Send + Sync>;
-
 /// Upload file to s3
 /// # Arguments
-/// * `params` - The params of upload, json format
-/// ** `bucket` - The bucket name
-/// ** `object` - The object key
-/// ** `access_key_id` - The access key id
-/// ** `secret_access_key` - The secret access key
-/// ** `file_path` - The file path
-/// ** `security_token` - The security token
-/// ** `region` - The region
-/// ** `tries` - The max retry times
-/// ** `verbose` - The verbose flag
-/// ** `endpoint` - The endpoint, use default if not set
-/// * `result_callback` - The callback function when upload finished
-/// ** `success` - The upload succeeded or not
-/// ** `message` - The error message if upload failed
-/// * `progress_callback` - The callback function when upload progress changed
-/// ** `progress` - The progress of upload, in percentage
-/// # Return
-/// * `0` - Success
+/// - `params` - The params of upload, json format
+///     - `bucket` - The bucket name
+///     - `object` - The object key
+///     - `access_key_id` - The access key id
+///     - `secret_access_key` - The secret access key
+///     - `file_path` - The file path
+///     - `security_token` - The security token
+///     - `region` - The region
+///     - `tries` - The max retry times
+///     - `endpoint` - The endpoint, use default if not set
+/// - `result_callback` - The callback function when upload finished
+///     - `success` - The upload succeeded or not
+///     - `message` - The error message if upload failed
+/// - `progress_callback` - The callback function when upload progress changed
+///     - `progress` - The progress of upload, in percentage
 pub fn upload(
     params: String,
-    result_callback: ResultCallback,
-    progress_callback: ProgressCallback,
+    result_callback: basic::ResultCallback,
+    progress_callback: basic::ProgressCallback,
 ) {
     let runtime = unsafe { RUNTIME.lock().unwrap() };
     let runtime = match &*runtime {
@@ -65,7 +61,7 @@ pub fn upload(
             return;
         }
     };
-    let params = match serde_json::from_str::<s3::S3Params>(&params) {
+    let params = match serde_json::from_str::<basic::S3Params>(&params) {
         Ok(params) => params,
         Err(err) => {
             result_callback(false, format!("parse params failed: {}", err));
@@ -73,7 +69,50 @@ pub fn upload(
         }
     };
     runtime.spawn(async move {
-        let result = s3::upload_object(&params).await;
+        let result = upload::put_object(&params, progress_callback).await;
+        result_callback(
+            result.is_ok(),
+            result.err().map(|err| err.to_string()).unwrap_or_default(),
+        );
+    });
+}
+
+/// download file from s3
+/// # Arguments
+/// - `params` - The params of download, json format
+///     - `bucket` - The bucket name
+///     - `object` - The object key
+///     - `access_key_id` - The access key id
+///     - `secret_access_key` - The secret access key
+///     - `file_path` - The file path
+///     - `security_token` - The security token
+///     - `region` - The region
+///     - `tries` - The max retry times
+///     - `endpoint` - The endpoint, use default if not set
+/// - `result_callback` - The callback function when download finished
+///     - `success` - The download succeeded or not
+///     - `message` - The error message if download failed
+pub fn download(
+    params: String,
+    result_callback: basic::ResultCallback,
+) {
+    let runtime = unsafe { RUNTIME.lock().unwrap() };
+    let runtime = match &*runtime {
+        Some(runtime) => runtime,
+        None => {
+            result_callback(false, "runtime not initialized".to_string());
+            return;
+        }
+    };
+    let params = match serde_json::from_str::<basic::S3Params>(&params) {
+        Ok(params) => params,
+        Err(err) => {
+            result_callback(false, format!("parse params failed: {}", err));
+            return;
+        }
+    };
+    runtime.spawn(async move {
+        let result = download::get_object(&params).await;
         result_callback(
             result.is_ok(),
             result.err().map(|err| err.to_string()).unwrap_or_default(),
@@ -83,7 +122,7 @@ pub fn upload(
 
 #[cfg(test)]
 mod tests {
-    use std::env;
+    use std::{env, sync::Arc};
     use super::*;
 
     #[test]
@@ -93,7 +132,7 @@ mod tests {
             let rt = unsafe { RUNTIME.lock().unwrap() };
             if let Some(rt) = &*rt {
                 rt.block_on(async {
-                    let mut params = s3::S3Params {
+                    let mut params = basic::S3Params {
                         bucket: env::var("AWS_BUCKET").unwrap(),
                         object: env::var("AWS_OBJECT_KEY").unwrap(),
                         access_key_id: env::var("AWS_ACCESS_KEY_ID").unwrap(),
@@ -106,11 +145,14 @@ mod tests {
                         endpoint: None,
                     };
                     println!("uploading begin");
-                    let upload_size = s3::upload_object(&params).await.unwrap();
+                    let progress_callback = |progress: f64| {
+                        println!("put object progress: {:.2}%", progress);
+                    };
+                    let upload_size = upload::put_object(&params, Arc::new(Mutex::new(progress_callback))).await.unwrap();
                     println!("uploading finished");
                     params.file_path = env::var("AWS_DOWNLOAD_FILE_PATH").unwrap();
                     println!("downloading begin");
-                    let download_size = s3::download_object(&params).await.unwrap();
+                    let download_size = download::get_object(&params).await.unwrap();
                     assert_eq!(download_size, upload_size);
                     println!("downloading finished");
                 });
