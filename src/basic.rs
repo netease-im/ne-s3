@@ -4,6 +4,7 @@ use aws_sdk_s3::{config::Credentials, Client};
 use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
 use bytes::Bytes;
 use http_body::{Body, SizeHint};
+use log::info;
 use rustls::{Certificate, RootCertStore};
 use rustls_pemfile::certs;
 use serde::{Deserialize, Serialize};
@@ -61,6 +62,7 @@ struct ProgressTracker {
     bytes_written: Arc<Mutex<u64>>,
     content_length: u64,
     progress_callback: ProgressCallback,
+    last_callback_time: std::time::Instant,
 }
 impl ProgressTracker {
     fn track(&mut self, len: u64) {
@@ -68,6 +70,13 @@ impl ProgressTracker {
         *bytes_written += len;
         let progress = *bytes_written as f64 / self.content_length as f64 * 100.0;
         let progress_callback = self.progress_callback.lock().unwrap();
+        if std::time::Instant::now() - self.last_callback_time
+            < std::time::Duration::from_millis(500)
+            && progress < 100.0
+        {
+            return;
+        }
+        self.last_callback_time = std::time::Instant::now();
         progress_callback(progress);
     }
 }
@@ -98,6 +107,7 @@ where
                 bytes_written,
                 content_length,
                 progress_callback,
+                last_callback_time: std::time::Instant::now(),
             },
         }
     }
@@ -184,7 +194,10 @@ pub fn create_s3_client(params: &S3Params) -> Result<Client, Box<dyn std::error:
         // If tries is 1, there are no retries.
         .retry_config(RetryConfig::standard().with_max_attempts(params.tries.unwrap_or(1)));
     if params.ca_certs_path.is_some() {
-        println!("use custom ca certs, path: {}", params.ca_certs_path.as_ref().unwrap());
+        info!(
+            "use custom ca certs, path: {}",
+            params.ca_certs_path.as_ref().unwrap()
+        );
         let root_store = load_ca_cert(params.ca_certs_path.as_ref().unwrap())?;
         let config = rustls::ClientConfig::builder()
             .with_safe_defaults()

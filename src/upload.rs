@@ -1,17 +1,17 @@
-
+use crate::basic;
 use aws_sdk_s3::{
     operation::create_multipart_upload::CreateMultipartUploadOutput,
     primitives::{ByteStream, SdkBody},
-    types::{CompletedMultipartUpload, CompletedPart}
+    types::{CompletedMultipartUpload, CompletedPart},
 };
 use aws_smithy_runtime_api::http::Request;
 use aws_smithy_types::byte_stream::Length;
+use log::info;
 use std::{
     convert::Infallible,
     path::Path,
     sync::{Arc, Mutex},
 };
-use crate::basic;
 
 const DEFAULT_CHUNK_SIZE: u64 = 1024 * 1024 * 5;
 const MAX_CHUNK_COUNT: u64 = 10000;
@@ -45,10 +45,16 @@ fn get_multiupload_chunk_info(
     }
 }
 
-pub async fn put_object(params: &basic::S3Params, proress_callback: basic::ProgressCallback) -> Result<u64, Box<dyn std::error::Error>> {
+pub async fn put_object(
+    params: &basic::S3Params,
+    proress_callback: basic::ProgressCallback,
+) -> Result<u64, Box<dyn std::error::Error>> {
     let client = basic::create_s3_client(&params)?;
     let mut metadata_header = std::collections::HashMap::new();
-    metadata_header.insert("x-amz-meta-token".to_string(), params.security_token.clone());
+    metadata_header.insert(
+        "x-amz-meta-token".to_string(),
+        params.security_token.clone(),
+    );
     let multipart_upload_res: CreateMultipartUploadOutput = client
         .create_multipart_upload()
         .bucket(&params.bucket)
@@ -68,7 +74,7 @@ pub async fn put_object(params: &basic::S3Params, proress_callback: basic::Progr
     }
     let upload_chunk_info =
         get_multiupload_chunk_info(file_size, DEFAULT_CHUNK_SIZE, MAX_CHUNK_COUNT);
-    println!("upload_chunk_info: {:?}", upload_chunk_info);
+    info!("upload_chunk_info: {:?}", upload_chunk_info);
     let mut upload_parts = Vec::new();
     let uploaded_size = Arc::new(Mutex::new(0_u64));
     for chunk_index in 0..upload_chunk_info.chunk_count {
@@ -101,7 +107,12 @@ pub async fn put_object(params: &basic::S3Params, proress_callback: basic::Progr
                     let uploaded_size = uploaded_size.clone();
                     let proress_callback = proress_callback.clone();
                     let value = value.map(move |body| {
-                        let body = basic::ProgressBody::new(body, uploaded_size.clone(), file_size, proress_callback.clone());
+                        let body = basic::ProgressBody::new(
+                            body,
+                            uploaded_size.clone(),
+                            file_size,
+                            proress_callback.clone(),
+                        );
                         SdkBody::from_body_0_4(body)
                     });
                     Ok(value)
@@ -120,7 +131,7 @@ pub async fn put_object(params: &basic::S3Params, proress_callback: basic::Progr
                 .build(),
         );
     }
-    println!("upload_parts finished");
+    info!("upload_parts finished");
     let completed_multipart_upload: CompletedMultipartUpload = CompletedMultipartUpload::builder()
         .set_parts(Some(upload_part_res_vec))
         .build();
