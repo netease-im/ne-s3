@@ -1,15 +1,17 @@
 use aws_config::{retry::RetryConfig, Region};
 use aws_credential_types::provider::{ProvideCredentials, SharedCredentialsProvider};
-use aws_sdk_s3::{
-    config::Credentials,
-    Client,
-};
+use aws_sdk_s3::{config::Credentials, Client};
+use aws_smithy_runtime::client::http::hyper_014::HyperClientBuilder;
 use bytes::Bytes;
 use http_body::{Body, SizeHint};
+use rustls::{Certificate, RootCertStore};
+use rustls_pemfile::certs;
 use serde::{Deserialize, Serialize};
 use std::{
+    fs::File,
+    io::BufReader,
     pin::Pin,
-    sync::{Mutex, Arc},
+    sync::{Arc, Mutex},
     task::{Context, Poll},
 };
 
@@ -84,7 +86,12 @@ impl<InnerBody> ProgressBody<InnerBody>
 where
     InnerBody: Body<Data = Bytes, Error = aws_smithy_types::body::Error>,
 {
-    pub fn new(body: InnerBody, bytes_written: Arc<Mutex<u64>>, content_length: u64, progress_callback: ProgressCallback) -> Self {
+    pub fn new(
+        body: InnerBody,
+        bytes_written: Arc<Mutex<u64>>,
+        content_length: u64,
+        progress_callback: ProgressCallback,
+    ) -> Self {
         Self {
             inner: body,
             progress_tracker: ProgressTracker {
@@ -144,12 +151,23 @@ pub struct S3Params {
     pub(crate) session_token: String,
     pub(crate) file_path: String,
     pub(crate) security_token: String,
+    pub(crate) ca_certs_path: Option<String>,
     pub(crate) region: Option<String>,
     pub(crate) tries: Option<u32>,
     pub(crate) endpoint: Option<String>,
 }
 
-pub fn create_s3_client(params: &S3Params) -> Client {
+fn load_ca_cert(path: &String) -> Result<RootCertStore, Box<dyn std::error::Error>> {
+    let file = File::open(path)?;
+    let mut reader = BufReader::new(file);
+    let mut root_store = RootCertStore::empty();
+    for cert in certs(&mut reader)? {
+        root_store.add(&Certificate(cert))?;
+    }
+    Ok(root_store)
+}
+
+pub fn create_s3_client(params: &S3Params) -> Result<Client, Box<dyn std::error::Error>> {
     let mut region = Region::new("ap-southeast-1");
     if let Some(region_str) = &params.region {
         region = Region::new(region_str.clone());
@@ -165,11 +183,27 @@ pub fn create_s3_client(params: &S3Params) -> Client {
         // Set max attempts.
         // If tries is 1, there are no retries.
         .retry_config(RetryConfig::standard().with_max_attempts(params.tries.unwrap_or(1)));
+    if params.ca_certs_path.is_some() {
+        println!("use custom ca certs, path: {}", params.ca_certs_path.as_ref().unwrap());
+        let root_store = load_ca_cert(params.ca_certs_path.as_ref().unwrap())?;
+        let config = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+        let tls_connector = hyper_rustls::HttpsConnectorBuilder::new()
+            .with_tls_config(config)
+            .https_only()
+            .enable_http1()
+            .enable_http2()
+            .build();
+        let hyper_client = HyperClientBuilder::new().build(tls_connector);
+        builder.set_http_client(Some(hyper_client));
+    }
     if params.endpoint.is_some() {
         let endpoint = params.endpoint.as_ref().unwrap_or(&"".to_string()).clone();
         builder.set_endpoint_url(Some(endpoint));
     }
     let shared_config = builder.build();
     // Construct an S3 client with customized retry configuration.
-    Client::new(&shared_config)
+    Ok(Client::new(&shared_config))
 }

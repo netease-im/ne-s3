@@ -2,7 +2,7 @@ use crate::basic;
 use std::{fs::File, io::Write};
 
 pub async fn get_object(params: &basic::S3Params) -> Result<u64, Box<dyn std::error::Error>> {
-    let client = basic::create_s3_client(&params);
+    let client = basic::create_s3_client(&params)?;
     let mut file = File::create(&params.file_path)?;
     let mut resp = client
         .get_object()

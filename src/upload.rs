@@ -46,7 +46,7 @@ fn get_multiupload_chunk_info(
 }
 
 pub async fn put_object(params: &basic::S3Params, proress_callback: basic::ProgressCallback) -> Result<u64, Box<dyn std::error::Error>> {
-    let client = basic::create_s3_client(&params);
+    let client = basic::create_s3_client(&params)?;
     let mut metadata_header = std::collections::HashMap::new();
     metadata_header.insert("x-amz-meta-token".to_string(), params.security_token.clone());
     let multipart_upload_res: CreateMultipartUploadOutput = client

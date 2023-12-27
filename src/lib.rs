@@ -143,6 +143,7 @@ mod tests {
                         region: Some(env::var("AWS_REGION").unwrap_or("ap-southeast-1".to_string())),
                         tries: Some(3),
                         endpoint: None,
+                        ca_certs_path: env::var("AWS_CA_CERTS_PATH").ok(),
                     };
                     println!("uploading begin");
                     let progress_callback = |progress: f64| {
