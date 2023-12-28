@@ -1,9 +1,13 @@
 [package]
 name = "ne-s3"
+description = "s3 client with C interface"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[package.metadata.bundle]
+name = "ne-s3"
+identifier = "com.netease.nmc.demo"
+copyright = "Copyright (c) Jane Doe 2016. All rights reserved."
 
 [dependencies]
 aws-config = { version = "1.1.1", features = ["behavior-version-latest"] }
@@ -26,6 +30,7 @@ log = "0.4.20"
 flexi_logger = "0.27.3"
 sysinfo = "0.30.1"
 clap = { version = "4.4.11", features = ["derive"] }
+urlencoding = "2.1.3"
 
 [dependencies.hyper-rustls]
 version = "0.24.2"

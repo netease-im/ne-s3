@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{sync::Mutex, path::Path};
 use sysinfo::System;
+use urlencoding::decode;
 pub use basic::S3Params;
 mod basic;
 mod download;
@@ -118,11 +119,19 @@ pub fn upload(
             return;
         }
     };
-    let params = match serde_json::from_str::<basic::S3Params>(&params) {
+    let mut params = match serde_json::from_str::<basic::S3Params>(&params) {
         Ok(params) => params,
         Err(err) => {
             result_callback(false, format!("parse params failed: {}", err));
             error!("parse params failed: {}", err);
+            return;
+        }
+    };
+    params.object = match decode(&params.object) {
+        Ok(object) => object.to_string(),
+        Err(err) => {
+            result_callback(false, format!("url decode param object failed: {}", err));
+            error!("decode object failed: {}", err);
             return;
         }
     };
@@ -165,11 +174,19 @@ pub fn download(params: String, result_callback: basic::ResultCallback) {
             return;
         }
     };
-    let params = match serde_json::from_str::<basic::S3Params>(&params) {
+    let mut params = match serde_json::from_str::<basic::S3Params>(&params) {
         Ok(params) => params,
         Err(err) => {
             error!("parse params failed: {}", err);
             result_callback(false, format!("parse params failed: {}", err));
+            return;
+        }
+    };
+    params.object = match decode(&params.object) {
+        Ok(object) => object.to_string(),
+        Err(err) => {
+            result_callback(false, format!("url decode param object failed: {}", err));
+            error!("decode object failed: {}", err);
             return;
         }
     };

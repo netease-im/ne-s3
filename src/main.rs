@@ -3,7 +3,7 @@ use log::info;
 use ne_s3::{download, init, uninit, upload};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, Condvar};
 
 #[derive(Parser, Debug, Serialize, Deserialize)]
 #[command(author, version, about, long_about = None)]
@@ -35,8 +35,7 @@ struct Args {
     log_path: String,
 }
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     let args = Args::parse();
     init(
         json!(
@@ -46,11 +45,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .to_string(),
     );
+    let flag = Arc::new(Mutex::new(false));
+    let cond = Arc::new(Condvar::new());
     match args.command.as_str() {
         "upload" => {
-            let result_callback = |success: bool, message: String| {
+            let cflag = flag.clone();
+            let ccond = cond.clone();
+            let result_callback = move |success: bool, message: String| {
                 info!("upload finished: {}", success);
                 info!("upload message: {}", message);
+                let mut lock = cflag.lock().unwrap();
+                *lock = true;
+                ccond.notify_one();
             };
             let progress_callback = |progress: f64| {
                 info!("put object progress: {:.2}%", progress);
@@ -60,20 +66,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Box::new(result_callback),
                 Arc::new(Mutex::new(progress_callback)),
             );
+            let mut lock = flag.lock().unwrap();
+            while !*lock {
+                lock = cond.wait(lock).unwrap();
+            }
         }
         "download" => {
+            let cflag = flag.clone();
+            let ccond = cond.clone();
             download(
                 serde_json::to_string(&args).unwrap(),
-                Box::new(|success: bool, message: String| {
+                Box::new(move |success: bool, message: String| {
                     info!("download finished: {}", success);
                     info!("download message: {}", message);
+                    let mut lock = cflag.lock().unwrap();
+                    *lock = true;
+                    ccond.notify_one();
                 }),
             );
+            let mut lock = flag.lock().unwrap();
+            while !*lock {
+                lock = cond.wait(lock).unwrap();
+            }
         }
         _ => {
             println!("unknown command: {}", args.command);
         }
     }
     uninit();
-    Ok(())
 }
