@@ -24,7 +24,7 @@ struct Args {
     #[arg(long)]
     security_token: String,
     #[arg(long, default_value_t = String::new())]
-    ca_certs_path: String,
+    ca_cert_path: String,
     #[arg(long, default_value_t = String::new())]
     region: String,
     #[arg(long, default_value_t = 3)]
@@ -58,7 +58,7 @@ fn main() {
                 *lock = true;
                 ccond.notify_one();
             };
-            let progress_callback = |progress: f64| {
+            let progress_callback = |progress: f32| {
                 info!("put object progress: {:.2}%", progress);
             };
             upload(

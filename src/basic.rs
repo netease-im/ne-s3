@@ -16,8 +16,14 @@ use std::{
     task::{Context, Poll},
 };
 
+/// result callback
+/// - `success` - true if success, false if failed
+/// - `message` - error message if failed
 pub type ResultCallback = Box<dyn Fn(bool, String) + Send + Sync>;
-pub type ProgressCallback = Arc<Mutex<dyn Fn(f64) + Send + Sync>>;
+
+/// progress callback
+/// - `progress` - progress of upload or download, in percentage
+pub type ProgressCallback = Arc<Mutex<dyn Fn(f32) + Send + Sync>>;
 
 #[derive(Debug)]
 pub struct NeS3Credential {
@@ -68,7 +74,7 @@ impl ProgressTracker {
     fn track(&mut self, len: u64) {
         let mut bytes_written = self.bytes_written.lock().unwrap();
         *bytes_written += len;
-        let progress = *bytes_written as f64 / self.content_length as f64 * 100.0;
+        let progress = *bytes_written as f32 / self.content_length as f32 * 100.0;
         let progress_callback = self.progress_callback.lock().unwrap();
         if std::time::Instant::now() - self.last_callback_time
             < std::time::Duration::from_millis(500)
@@ -159,12 +165,12 @@ pub struct S3Params {
     pub(crate) access_key_id: String,
     pub(crate) secret_access_key: String,
     pub(crate) session_token: String,
-    pub(crate) file_path: String,
     pub(crate) security_token: String,
-    pub(crate) ca_certs_path: Option<String>,
+    pub(crate) file_path: String,
     pub(crate) region: Option<String>,
     pub(crate) tries: Option<u32>,
     pub(crate) endpoint: Option<String>,
+    pub(crate) ca_cert_path: Option<String>,
 }
 
 fn load_ca_cert(path: &String) -> Result<RootCertStore, Box<dyn std::error::Error>> {
@@ -193,12 +199,12 @@ pub fn create_s3_client(params: &S3Params) -> Result<Client, Box<dyn std::error:
         // Set max attempts.
         // If tries is 1, there are no retries.
         .retry_config(RetryConfig::standard().with_max_attempts(params.tries.unwrap_or(1)));
-    if params.ca_certs_path.is_some() {
+    if params.ca_cert_path.is_some() {
         info!(
             "use custom ca certs, path: {}",
-            params.ca_certs_path.as_ref().unwrap()
+            params.ca_cert_path.as_ref().unwrap()
         );
-        let root_store = load_ca_cert(params.ca_certs_path.as_ref().unwrap())?;
+        let root_store = load_ca_cert(params.ca_cert_path.as_ref().unwrap())?;
         let config = rustls::ClientConfig::builder()
             .with_safe_defaults()
             .with_root_certificates(root_store)

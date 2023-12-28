@@ -3,7 +3,7 @@ use flexi_logger::{with_thread, Age, Cleanup, Criterion, FileSpec, Logger, Namin
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{sync::Mutex, path::Path};
+use std::{sync::{Mutex, Arc}, path::Path};
 use sysinfo::System;
 use urlencoding::decode;
 pub use basic::S3Params;
@@ -17,23 +17,23 @@ struct InitParams {
 }
 
 static mut RUNTIME: Mutex<Option<tokio::runtime::Runtime>> = Mutex::new(None);
-/// init tokio runtime
+/// init sdk
 /// run this function before any other functions
 /// # Arguments
 /// - `params` - The params of init, json format
 ///     - `log_path` - The log path, use stdout if not set
-pub fn init(params_str: String) {
+pub fn init(params: String) {
     let mut runtime = unsafe { RUNTIME.lock().unwrap() };
     if !runtime.is_none() {
         return;
     }
-    let params = match serde_json::from_str::<InitParams>(&params_str) {
-        Ok(params) => params,
+    let parsed_params = match serde_json::from_str::<InitParams>(&params) {
+        Ok(result) => result,
         Err(err) => {
             panic!("parse init params failed: {}", err);
         }
     };
-    let log_path = params.log_path.as_ref();
+    let log_path = parsed_params.log_path.as_ref();
     if log_path.is_some_and(|path| Path::new(path).exists()) {
         let log_path = log_path.unwrap();
         let _logger = Logger::try_with_str("info")
@@ -55,7 +55,7 @@ pub fn init(params_str: String) {
             .start()
             .unwrap();
     }
-    info!("init params: {}", params_str);
+    info!("init params: {}", params);
     let mut system_info = System::new_all();
     system_info.refresh_all();
     let system_info_json = json!({
@@ -74,8 +74,14 @@ pub fn init(params_str: String) {
         .unwrap();
     *runtime = Some(rt);
 }
+#[no_mangle]
+pub extern "cdecl" fn ne_s3_init(params: *const std::os::raw::c_char) {
+    let params = unsafe { std::ffi::CStr::from_ptr(params) };
+    let params = params.to_str().unwrap();
+    init(params.to_string());
+}
 
-/// uninit tokio runtime
+/// uninit sdk
 /// run this function to shutdown
 pub fn uninit() {
     let mut runtime = unsafe { RUNTIME.lock().unwrap() };
@@ -86,6 +92,10 @@ pub fn uninit() {
         rt.shutdown_background();
     }
 }
+#[no_mangle]
+pub extern "cdecl" fn ne_s3_uninit() {
+    uninit();
+}
 
 /// Upload file to s3
 /// # Arguments
@@ -94,16 +104,15 @@ pub fn uninit() {
 ///     - `object` - The object key
 ///     - `access_key_id` - The access key id
 ///     - `secret_access_key` - The secret access key
-///     - `file_path` - The file path
+///     - `session_token` - The session token
 ///     - `security_token` - The security token
+///     - `file_path` - The file path
 ///     - `region` - The region
 ///     - `tries` - The max retry times
 ///     - `endpoint` - The endpoint, use default if not set
+///     - `ca_cert_path` - The ca certs path, use system certs if not set
 /// - `result_callback` - The callback function when upload finished
-///     - `success` - The upload succeeded or not
-///     - `message` - The error message if upload failed
 /// - `progress_callback` - The callback function when upload progress changed
-///     - `progress` - The progress of upload, in percentage
 pub fn upload(
     params: String,
     result_callback: basic::ResultCallback,
@@ -147,6 +156,25 @@ pub fn upload(
         }
     });
 }
+#[no_mangle]
+pub extern "cdecl" fn ne_s3_upload(
+    params: *const std::os::raw::c_char,
+    result_callback: extern "C" fn(success: bool, message: *const std::os::raw::c_char, user_data: *const std::os::raw::c_char),
+    progress_callback: extern "C" fn(progress: f32, user_data: *const std::os::raw::c_char),
+    user_data: *const std::os::raw::c_char,
+) {
+    let params = unsafe { std::ffi::CStr::from_ptr(params as *mut _) };
+    let params = params.to_str().unwrap().to_string();
+    let user_data = unsafe { std::ffi::CStr::from_ptr(user_data) };
+    let result_callback = move |success: bool, message: String| {
+        let message = std::ffi::CString::new(message).unwrap();
+        result_callback(success, message.as_ptr(), user_data.as_ptr());
+    };
+    let progress_callback = move |progress: f32| {
+        progress_callback(progress, user_data.as_ptr());
+    };
+    upload(params.to_string(), Box::new(result_callback), Arc::new(Mutex::new(progress_callback)));
+}
 
 /// download file from s3
 /// # Arguments
@@ -155,14 +183,14 @@ pub fn upload(
 ///     - `object` - The object key
 ///     - `access_key_id` - The access key id
 ///     - `secret_access_key` - The secret access key
-///     - `file_path` - The file path
+///     - `session_token` - The session token
 ///     - `security_token` - The security token
+///     - `file_path` - The file path
 ///     - `region` - The region
 ///     - `tries` - The max retry times
 ///     - `endpoint` - The endpoint, use default if not set
+///     - `ca_cert_path` - The ca certs path, use system certs if not set
 /// - `result_callback` - The callback function when download finished
-///     - `success` - The download succeeded or not
-///     - `message` - The error message if download failed
 pub fn download(params: String, result_callback: basic::ResultCallback) {
     info!("download params: {}", params);
     let runtime = unsafe { RUNTIME.lock().unwrap() };
@@ -201,4 +229,19 @@ pub fn download(params: String, result_callback: basic::ResultCallback) {
             result_callback(false, error_descrption);
         }
     });
+}
+#[no_mangle]
+pub extern "cdecl" fn ne_s3_download(
+    params: *const std::os::raw::c_char,
+    result_callback: extern "C" fn(success: bool, message: *const std::os::raw::c_char, user_data: *const std::os::raw::c_char),
+    user_data: *const std::os::raw::c_char,
+) {
+    let params = unsafe { std::ffi::CStr::from_ptr(params as *mut _) };
+    let params = params.to_str().unwrap().to_string();
+    let user_data = unsafe { std::ffi::CStr::from_ptr(user_data) };
+    let result_callback = move |success: bool, message: String| {
+        let message = std::ffi::CString::new(message).unwrap();
+        result_callback(success, message.as_ptr(), user_data.as_ptr());
+    };
+    download(params.to_string(), Box::new(result_callback));
 }
