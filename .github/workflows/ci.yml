@@ -1,0 +1,192 @@
+name: ne-s3-actions
+on: [push, pull_request]
+jobs:
+  x86_64-pc-windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-pc-windows-msvc
+      - run: cargo build --release --target x86_64-pc-windows-msvc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-pc-windows-msvc
+          path: |
+            target/x86_64-pc-windows-msvc/release/ne_s3.dll
+            target/x86_64-pc-windows-msvc/release/ne_s3.dll.lib
+            target/x86_64-pc-windows-msvc/release/ne_s3.pdb
+            target/x86_64-pc-windows-msvc/release/ne-s3-client.exe
+  i686-pc-windows-msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: i686-pc-windows-msvc
+      - run: cargo build --release --target i686-pc-windows-msvc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: i686-pc-windows-msvc
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/i686-pc-windows-msvc/release/ne_s3.dll
+            target/i686-pc-windows-msvc/release/ne_s3.dll.lib
+            target/i686-pc-windows-msvc/release/ne_s3.pdb
+            target/i686-pc-windows-msvc/release/ne-s3-client.exe
+  x86_64-unknown-linux-gnu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-gnu
+      - run: cargo build --release --target x86_64-unknown-linux-gnu
+      - uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-unknown-linux-gnu
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/x86_64-unknown-linux-gnu/release/libne_s3.so
+            target/x86_64-unknown-linux-gnu/release/ne-s3-client
+  aarch64-unknown-linux-gnu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-unknown-linux-gnu
+      - run: cargo build --release --target aarch64-unknown-linux-gnu
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-unknown-linux-gnu
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/aarch64-unknown-linux-gnu/release/libne_s3.so
+            target/aarch64-unknown-linux-gnu/release/ne-s3-client
+  x86_64-apple-darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-apple-darwin
+      - run: cargo build --release --target x86_64-apple-darwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-apple-darwin
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/x86_64-apple-darwin/release/libne_s3.dylib
+            target/x86_64-apple-darwin/release/ne-s3-client
+  aarch64-apple-darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-darwin
+      - run: cargo build --release --target aarch64-apple-darwin
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-apple-darwin
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/aarch64-apple-darwin/release/libne_s3.dylib
+            target/aarch64-apple-darwin/release/ne-s3-client
+  aarch64-linux-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-linux-android
+      - run: cargo build --release --target aarch64-linux-android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-linux-android
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/aarch64-linux-android/release/libne_s3.so
+            target/aarch64-linux-android/release/ne-s3-client
+  armv7-linux-androideabi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: armv7-linux-androideabi
+      - run: cargo build --release --target armv7-linux-androideabi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: armv7-linux-androideabi
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/armv7-linux-androideabi/release/libne_s3.so
+            target/armv7-linux-androideabi/release/ne-s3-client
+  aarch64-apple-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios
+      - run: cargo build --release --target aarch64-apple-ios
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-apple-ios
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/aarch64-apple-ios/release/libne_s3.dylib
+            target/aarch64-apple-ios/release/ne-s3-client
+  aarch64-apple-ios-sim:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: aarch64-apple-ios-sim
+      - run: cargo build --release --target aarch64-apple-ios-sim
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aarch64-apple-ios-sim
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/aarch64-apple-ios-sim/release/libne_s3.dylib
+            target/aarch64-apple-ios-sim/release/ne-s3-client
+  x86_64-apple-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-apple-ios
+      - run: cargo build --release --target x86_64-apple-ios
+      - uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-apple-ios
+          path: |
+            resources/cacert.pem
+            resources/ne_s3.h
+            target/x86_64-apple-ios/release/libne_s3.dylib
+            target/x86_64-apple-ios/release/ne-s3-client

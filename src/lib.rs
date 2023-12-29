@@ -1,12 +1,15 @@
 //! simple s3 client with C interfaces
+pub use basic::S3Params;
 use flexi_logger::{with_thread, Age, Cleanup, Criterion, FileSpec, Logger, Naming, WriteMode};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::{sync::{Mutex, Arc}, path::Path};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 use sysinfo::System;
 use urlencoding::decode;
-pub use basic::S3Params;
 mod basic;
 mod download;
 mod upload;
@@ -27,6 +30,18 @@ pub fn init(params: String) {
     if !runtime.is_none() {
         return;
     }
+    std::panic::set_hook(Box::new(|info| {
+        let backtrace = std::backtrace::Backtrace::force_capture();
+        let payload = info.payload();
+        if let Some(string) = payload.downcast_ref::<String>() {
+            error!("panic captured: {string}");
+        } else if let Some(str) = payload.downcast_ref::<&'static str>() {
+            error!("panic captured: {str}")
+        } else {
+            error!("panic captured: {payload:?}")
+        }
+        error!("panic backtrace:\n{:?}", backtrace);
+    }));
     let parsed_params = match serde_json::from_str::<InitParams>(&params) {
         Ok(result) => result,
         Err(err) => {
@@ -34,7 +49,7 @@ pub fn init(params: String) {
         }
     };
     let log_path = parsed_params.log_path.as_ref();
-    if log_path.is_some_and(|path| Path::new(path).exists()) {
+    if log_path.is_some_and(|path| !path.is_empty() && (Path::new(path).exists()) || std::fs::create_dir_all(path).is_ok()) {
         let log_path = log_path.unwrap();
         let _logger = Logger::try_with_str("info")
             .unwrap()
@@ -159,7 +174,11 @@ pub fn upload(
 #[no_mangle]
 pub extern "cdecl" fn ne_s3_upload(
     params: *const std::os::raw::c_char,
-    result_callback: extern "C" fn(success: bool, message: *const std::os::raw::c_char, user_data: *const std::os::raw::c_char),
+    result_callback: extern "C" fn(
+        success: bool,
+        message: *const std::os::raw::c_char,
+        user_data: *const std::os::raw::c_char,
+    ),
     progress_callback: extern "C" fn(progress: f32, user_data: *const std::os::raw::c_char),
     user_data: *const std::os::raw::c_char,
 ) {
@@ -173,7 +192,11 @@ pub extern "cdecl" fn ne_s3_upload(
     let progress_callback = move |progress: f32| {
         progress_callback(progress, user_data.as_ptr());
     };
-    upload(params.to_string(), Box::new(result_callback), Arc::new(Mutex::new(progress_callback)));
+    upload(
+        params.to_string(),
+        Box::new(result_callback),
+        Arc::new(Mutex::new(progress_callback)),
+    );
 }
 
 /// download file from s3
@@ -233,7 +256,11 @@ pub fn download(params: String, result_callback: basic::ResultCallback) {
 #[no_mangle]
 pub extern "cdecl" fn ne_s3_download(
     params: *const std::os::raw::c_char,
-    result_callback: extern "C" fn(success: bool, message: *const std::os::raw::c_char, user_data: *const std::os::raw::c_char),
+    result_callback: extern "C" fn(
+        success: bool,
+        message: *const std::os::raw::c_char,
+        user_data: *const std::os::raw::c_char,
+    ),
     user_data: *const std::os::raw::c_char,
 ) {
     let params = unsafe { std::ffi::CStr::from_ptr(params as *mut _) };

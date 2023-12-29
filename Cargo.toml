@@ -41,5 +41,5 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
-name = "ne-s3"
+name = "ne-s3-client"
 path = "src/main.rs"
