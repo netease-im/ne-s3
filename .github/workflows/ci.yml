@@ -4,7 +4,7 @@ jobs:
   x86_64-pc-windows-msvc:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -21,7 +21,7 @@ jobs:
   i686-pc-windows-msvc:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -40,7 +40,7 @@ jobs:
   x86_64-unknown-linux-gnu:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -57,7 +57,7 @@ jobs:
   aarch64-unknown-linux-gnu:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -74,7 +74,7 @@ jobs:
   x86_64-apple-darwin:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -91,7 +91,7 @@ jobs:
   aarch64-apple-darwin:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
@@ -105,88 +105,41 @@ jobs:
             resources/ne_s3.h
             target/aarch64-apple-darwin/release/libne_s3.dylib
             target/aarch64-apple-darwin/release/ne-s3-client
-  aarch64-linux-android:
+  android-universal:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: aarch64-linux-android
-      - run: cargo build --release --target aarch64-linux-android
+          targets: aarch64-linux-android, armv7-linux-androideabi, i686-linux-android, x86_64-linux-android
+      - run: cargo install cargo-ndk
+      - run: cargo ndk -t arm64-v8a -t armeabi-v7a -t x86_64 -t x86 -o ./jniLibs build --release
       - uses: actions/upload-artifact@v4
         with:
-          name: aarch64-linux-android
+          name: android-universal
           path: |
             resources/cacert.pem
             resources/ne_s3.h
-            target/aarch64-linux-android/release/libne_s3.so
-            target/aarch64-linux-android/release/ne-s3-client
-  armv7-linux-androideabi:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: armv7-linux-androideabi
-      - run: cargo build --release --target armv7-linux-androideabi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: armv7-linux-androideabi
-          path: |
-            resources/cacert.pem
-            resources/ne_s3.h
-            target/armv7-linux-androideabi/release/libne_s3.so
-            target/armv7-linux-androideabi/release/ne-s3-client
-  aarch64-apple-ios:
+            jniLibs
+  ios-universal:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: aarch64-apple-ios
-      - run: cargo build --release --target aarch64-apple-ios
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+      - run: cargo build --release --target aarch64-apple-ios --target aarch64-apple-ios-sim --target x86_64-apple-ios
       - uses: actions/upload-artifact@v4
         with:
-          name: aarch64-apple-ios
+          name: ios-universal
           path: |
             resources/cacert.pem
             resources/ne_s3.h
             target/aarch64-apple-ios/release/libne_s3.dylib
             target/aarch64-apple-ios/release/ne-s3-client
-  aarch64-apple-ios-sim:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: aarch64-apple-ios-sim
-      - run: cargo build --release --target aarch64-apple-ios-sim
-      - uses: actions/upload-artifact@v4
-        with:
-          name: aarch64-apple-ios-sim
-          path: |
-            resources/cacert.pem
-            resources/ne_s3.h
             target/aarch64-apple-ios-sim/release/libne_s3.dylib
             target/aarch64-apple-ios-sim/release/ne-s3-client
-  x86_64-apple-ios:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: x86_64-apple-ios
-      - run: cargo build --release --target x86_64-apple-ios
-      - uses: actions/upload-artifact@v4
-        with:
-          name: x86_64-apple-ios
-          path: |
-            resources/cacert.pem
-            resources/ne_s3.h
             target/x86_64-apple-ios/release/libne_s3.dylib
             target/x86_64-apple-ios/release/ne-s3-client
