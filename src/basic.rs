@@ -218,8 +218,8 @@ pub fn create_s3_client(params: &S3Params) -> Result<Client, Box<dyn std::error:
         let hyper_client = HyperClientBuilder::new().build(tls_connector);
         builder.set_http_client(Some(hyper_client));
     }
-    if params.endpoint.is_some() {
-        let endpoint = params.endpoint.as_ref().unwrap_or(&"".to_string()).clone();
+    if params.endpoint.as_ref().is_some_and(|url| !url.is_empty()) {
+        let endpoint = params.endpoint.as_ref().unwrap().clone();
         builder.set_endpoint_url(Some(endpoint));
     }
     let shared_config = builder.build();
