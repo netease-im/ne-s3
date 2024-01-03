@@ -30,18 +30,6 @@ pub fn init(params: String) {
     if !runtime.is_none() {
         return;
     }
-    std::panic::set_hook(Box::new(|info| {
-        let backtrace = std::backtrace::Backtrace::force_capture();
-        let payload = info.payload();
-        if let Some(string) = payload.downcast_ref::<String>() {
-            error!("panic captured: {string}");
-        } else if let Some(str) = payload.downcast_ref::<&'static str>() {
-            error!("panic captured: {str}")
-        } else {
-            error!("panic captured: {payload:?}")
-        }
-        error!("panic backtrace:\n{:?}", backtrace);
-    }));
     let parsed_params = match serde_json::from_str::<InitParams>(&params) {
         Ok(result) => result,
         Err(err) => {
