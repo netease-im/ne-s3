@@ -1,20 +1,10 @@
 use crate::basic;
-use std::{fs::File, io::Write};
+use log::info;
 
 pub async fn get_object(params: &basic::S3Params) -> Result<u64, Box<dyn std::error::Error>> {
-    let client = basic::create_s3_client(&params)?;
-    let mut file = File::create(&params.file_path)?;
-    let mut resp = client
-        .get_object()
-        .bucket(&params.bucket)
-        .key(&params.object)
-        .send()
-        .await?;
-    let mut byte_count = 0_u64;
-    while let Some(bytes) = resp.body.try_next().await? {
-        let bytes_len = bytes.len();
-        file.write_all(&bytes)?;
-        byte_count += bytes_len as u64;
-    }
-    Ok(byte_count)
+    let bucket = basic::get_s3_bucket(params)?;
+    let mut async_output_file = tokio::fs::File::create(&params.file_path).await?;
+    let status_code = bucket.get_object_to_writer(&params.object, &mut async_output_file).await?;
+    info!("get_object status code: {}", status_code);
+    Ok(0)
 }
