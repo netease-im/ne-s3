@@ -103,12 +103,12 @@ jobs:
       - run: tar -xzf OpenSSL_3.2.0_armeabi-v7a.tar.gz
       - run: cargo ndk -t arm64-v8a -o ./jniLibs build --release
         env:
-          OPENSSL_LIB_DIR: ${{ github.workspace }}/OpenSSL_3.2.0_arm64-v8a/lib
-          OPENSSL_INCLUDE_DIR: ${{ github.workspace }}/OpenSSL_3.2.0_arm64-v8a/include
+          OPENSSL_LIB_DIR: ${{ github.workspace }}/openssl_3.2.0_arm64-v8a/lib
+          OPENSSL_INCLUDE_DIR: ${{ github.workspace }}/openssl_3.2.0_arm64-v8a/include
       - run: cargo ndk -t armeabi-v7a -o ./jniLibs build --release
         env:
-          OPENSSL_LIB_DIR: ${{ github.workspace }}/OpenSSL_3.2.0_armeabi-v7a/lib
-          OPENSSL_INCLUDE_DIR: ${{ github.workspace }}/OpenSSL_3.2.0_armeabi-v7a/include
+          OPENSSL_LIB_DIR: ${{ github.workspace }}/openssl_3.2.0_armeabi-v7a/lib
+          OPENSSL_INCLUDE_DIR: ${{ github.workspace }}/openssl_3.2.0_armeabi-v7a/include
       - uses: actions/upload-artifact@v4
         with:
           name: android-universal
