@@ -95,7 +95,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: aarch64-linux-android
+          targets: aarch64-linux-android, armv7-linux-androideabi
       - run: cargo install cargo-ndk
       - run: curl -L https://github.com/217heidai/openssl_for_android/releases/download/3.2.0/OpenSSL_3.2.0_arm64-v8a.tar.gz -o OpenSSL_3.2.0_arm64-v8a.tar.gz
       - run: curl -L https://github.com/217heidai/openssl_for_android/releases/download/3.2.0/OpenSSL_3.2.0_armeabi-v7a.tar.gz -o OpenSSL_3.2.0_armeabi-v7a.tar.gz
